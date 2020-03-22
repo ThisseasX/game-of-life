@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Game of Life</title>
+    <style>
+      body {
+        margin: 0;
+        background-color: black;
+      }
+
+      #generations {
+        font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+        position: fixed;
+        color: red;
+        bottom: 16px;
+        right: 16px;
+        font-size: 40px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="cvs" width="2002" height="2002"></canvas>
+    <div id="generations">0</div>
+    <script>
+      const generationsDiv = document.querySelector('#generations');
+      const cvs = document.querySelector('#cvs');
+      const ctx = cvs.getContext('2d');
+
+      const STATES = {
+        PREPARING: 0,
+        STARTED: 1,
+      };
+
+      const CELL_SIZE = 20;
+      const CELL_MARGIN = 1.01;
+
+      const R_PENTOMINO_COORDS = [
+        [1, 0],
+        [2, 0],
+        [0, 1],
+        [1, 1],
+        [1, 2],
+      ];
+
+      const ADJACENT_COORDS = [
+        [-1, -1],
+        [0, -1],
+        [1, -1],
+        [-1, 0],
+        [1, 0],
+        [-1, 1],
+        [0, 1],
+        [1, 1],
+      ];
+
+      const get = path => target =>
+        path.reduce((result, step) => result && result[step], target);
+
+      let cells = Array(100)
+        .fill()
+        .map(() => Array(100).fill(0));
+
+      let state = STATES.PREPARING;
+      let generations = 0;
+
+      function drawCell(x, y, cell) {
+        ctx.fillStyle = cell === 1 ? 'white' : cell === 0 ? 'black' : 'red';
+        ctx.fillRect(
+          ...[x, y].map(n => n * CELL_SIZE * CELL_MARGIN),
+          CELL_SIZE,
+          CELL_SIZE,
+        );
+      }
+
+      function drawRPentomino(cells, xOffset, yOffset) {
+        return loopCells(
+          cells,
+          (x, y) =>
+            +R_PENTOMINO_COORDS.some(
+              ([xx, yy]) => x === xx + xOffset && y === yy + yOffset,
+            ),
+        );
+      }
+
+      function getAdjacentN(cells, x = 0, y = 0) {
+        return ADJACENT_COORDS.map(([xx, yy]) =>
+          get([yy + y, xx + x])(cells),
+        ).reduce((acc, cur) => acc + +(cur || 0), 0);
+      }
+
+      function calculateLife(cell, adjacent) {
+        return +(!cell ? adjacent === 3 : adjacent === 2 || adjacent === 3);
+      }
+
+      function loopCells(cells, cb) {
+        return cells.map((row, y) =>
+          row.map((cell, x) => {
+            return cb(x, y, cell);
+          }),
+        );
+      }
+
+      function noLife(cells) {
+        return !cells.reduce(
+          (sum, row) => sum + row.reduce((life, cell) => life + +cell, 0),
+          0,
+        );
+      }
+
+      function paintCells(cells) {
+        loopCells(cells, drawCell);
+      }
+
+      function nextGen(cells) {
+        return loopCells(cells, (x, y, cell) =>
+          calculateLife(cell, getAdjacentN(cells, x, y)),
+        );
+      }
+
+      function init() {
+        paintCells(cells);
+      }
+
+      function main() {
+        cells = nextGen(cells);
+        paintCells(cells);
+
+        if (noLife(cells)) {
+          clearInterval(mainInterval);
+          state = STATES.PREPARING;
+          generations = 0;
+        } else {
+          generations++;
+        }
+
+        generationsDiv.innerText = generations;
+      }
+
+      let startTimer = 0;
+      let mainInterval = 0;
+
+      ['mousedown', 'touchstart'].forEach(e =>
+        cvs.addEventListener(e, ({ target, clientX, clientY }) => {
+          if (state === STATES.PREPARING) {
+            const rect = target.getBoundingClientRect();
+
+            const xx = clientX - rect.left;
+            const yy = clientY - rect.top;
+
+            cells = loopCells(cells, (x, y, cell) =>
+              xx >= x * CELL_SIZE * CELL_MARGIN &&
+              yy >= y * CELL_SIZE * CELL_MARGIN &&
+              xx < (x + 1) * CELL_SIZE * CELL_MARGIN &&
+              yy < (y + 1) * CELL_SIZE * CELL_MARGIN
+                ? cell
+                  ? 0
+                  : 1
+                : cell,
+            );
+
+            paintCells(cells);
+
+            startTimer = setTimeout(() => {
+              state = STATES.STARTED;
+              mainInterval = setInterval(main, 60);
+            }, 1000);
+          }
+        }),
+      );
+
+      ['mouseup', 'touchend'].forEach(e =>
+        cvs.addEventListener(e, () => {
+          clearTimeout(startTimer);
+        }),
+      );
+
+      init();
+    </script>
+  </body>
+</html>
